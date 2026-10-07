@@ -1,0 +1,58 @@
+[
+  {
+    "id": 0,
+    "name": "Albion",
+    "color": "#d4b461",
+    "capital": 0,
+    "description": "An island kingdom guarding the Channel and Atlantic approaches."
+  },
+  {
+    "id": 1,
+    "name": "Gaullia",
+    "color": "#648fc0",
+    "capital": 0,
+    "description": "A western republic with a large army and industrial heartland."
+  },
+  {
+    "id": 2,
+    "name": "Reichmark",
+    "color": "#b67e72",
+    "capital": 0,
+    "description": "A central industrial power seeking influence across the continent."
+  },
+  {
+    "id": 3,
+    "name": "Italica",
+    "color": "#85a86d",
+    "capital": 0,
+    "description": "A southern kingdom projecting naval power into the Mediterranean."
+  },
+  {
+    "id": 4,
+    "name": "Iberia",
+    "color": "#cf965c",
+    "capital": 0,
+    "description": "A peninsula republic at the meeting of the Atlantic and Mediterranean."
+  },
+  {
+    "id": 5,
+    "name": "Nordland",
+    "color": "#89bdbe",
+    "capital": 0,
+    "description": "A northern federation protecting the Baltic and rugged coasts."
+  },
+  {
+    "id": 6,
+    "name": "Volgrad Union",
+    "color": "#b26069",
+    "capital": 0,
+    "description": "An eastern union with broad frontiers and deep manpower reserves."
+  },
+  {
+    "id": 7,
+    "name": "Danubia",
+    "color": "#a193c5",
+    "capital": 0,
+    "description": "A central federation at the crossroads of rival continental powers."
+  }
+]
