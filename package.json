@@ -11,7 +11,8 @@
     "test": "tsx --test tests/*.test.ts",
     "sim": "tsx scripts/sim.ts",
     "start": "NODE_ENV=production tsx server/index.ts",
-    "format": "prettier --write src server scripts tests README.md package.json tsconfig.json index.html"
+    "format": "prettier --write src server scripts tests editor README.md package.json tsconfig.json index.html",
+    "map": "tsx server/map-editor.ts"
   },
   "dependencies": {
     "react": "^19.1.0",

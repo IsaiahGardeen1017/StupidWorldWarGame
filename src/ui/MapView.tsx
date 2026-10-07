@@ -9,6 +9,7 @@ interface Props {
   units: number[];
   air: boolean;
   sea?: boolean;
+  insetLeft?: number;
   onProvince: (id: number) => void;
   onUnits: (ids: number[]) => void;
   onMove: (id: number) => void;
@@ -30,12 +31,14 @@ export function MapView(props: Props) {
     meshes: THREE.Mesh[];
     units: THREE.Group;
     labels: THREE.Group;
+    routes: THREE.Group;
+    resize: () => void;
   } | null>(null);
   useEffect(() => {
     const el = host.current!;
     const world = props.world;
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color("#111f2c");
+    scene.background = new THREE.Color("#283d43");
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
     el.appendChild(renderer.domElement);
@@ -48,6 +51,18 @@ export function MapView(props: Props) {
       100,
     );
     camera.position.z = 50;
+    const paper = document.createElement("canvas");
+    paper.width = paper.height = 96;
+    const paperContext = paper.getContext("2d")!;
+    const grain = paperContext.createImageData(96, 96);
+    for (let i = 0; i < 96 * 96; i++) {
+      const value = 226 + ((i * 73 + (i % 96) * 19) % 29);
+      grain.data.set([value, value, value, 255], i * 4);
+    }
+    paperContext.putImageData(grain, 0, 0);
+    const texture = new THREE.CanvasTexture(paper);
+    texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+    texture.repeat.set(0.035, 0.035);
     const meshes: THREE.Mesh[] = [];
     for (const p of world.provinces) {
       const shapes: THREE.Shape[] = [];
@@ -73,7 +88,10 @@ export function MapView(props: Props) {
         outer?.holes.push(hole);
       }
       const geometry = new THREE.ShapeGeometry(shapes);
-      const mat = new THREE.MeshBasicMaterial({ color: "#516773" });
+      const mat = new THREE.MeshBasicMaterial({
+        color: "#516773",
+        map: texture,
+      });
       const mesh = new THREE.Mesh(geometry, mat);
       mesh.userData.province = p.id;
       meshes.push(mesh);
@@ -85,17 +103,18 @@ export function MapView(props: Props) {
         const line = new THREE.Line(
           new THREE.BufferGeometry().setFromPoints(points),
           new THREE.LineBasicMaterial({
-            color: "#172b33",
+            color: "#263129",
             transparent: true,
-            opacity: 0.75,
+            opacity: 0.35,
           }),
         );
         scene.add(line);
       }
     }
     const units = new THREE.Group(),
-      labels = new THREE.Group();
-    scene.add(units, labels);
+      labels = new THREE.Group(),
+      routes = new THREE.Group();
+    scene.add(units, labels, routes);
     for (const n of world.nations) {
       const ps = world.provinces.filter((p) => p.owner === n.id);
       if (!ps.length) continue;
@@ -105,10 +124,10 @@ export function MapView(props: Props) {
       canvas.width = 512;
       canvas.height = 64;
       const ctx = canvas.getContext("2d")!;
-      ctx.font = "600 26px sans-serif";
+      ctx.font = "600 25px Georgia";
       ctx.textAlign = "center";
-      ctx.fillStyle = "#ffffff";
-      ctx.shadowColor = "#10202a";
+      ctx.fillStyle = "#eee5c8";
+      ctx.shadowColor = "#18241b";
       ctx.shadowBlur = 5;
       ctx.fillText(n.name.toUpperCase(), 256, 40);
       const sprite = new THREE.Sprite(
@@ -144,24 +163,36 @@ export function MapView(props: Props) {
         copy.position.x += dx;
         labels.add(copy);
       }
-    const rt = { scene, renderer, camera, meshes, units, labels };
+    const rt = {
+      scene,
+      renderer,
+      camera,
+      meshes,
+      units,
+      labels,
+      routes,
+      resize: () => {},
+    };
     runtime.current = rt;
     const resize = () => {
       const w = el.clientWidth,
-        h = el.clientHeight,
-        aspect = w / h;
-      const vh = world.height + 24,
-        vw = Math.min(
-          world.width * 2.5,
-          Math.max(world.width + 24, vh * aspect),
-        );
-      camera.left = world.width / 2 - vw / 2;
+        h = el.clientHeight;
+      const inset =
+        w > 650 ? Math.min(current.current.insetLeft || 0, w * 0.4) : 0;
+      const usableW = w - inset;
+      const vw = Math.max(
+        world.width + 24,
+        ((world.height + 24) * usableW) / h,
+      );
+      const fullW = (vw * w) / usableW;
+      camera.left = world.width / 2 - vw / 2 - (fullW - vw);
       camera.right = world.width / 2 + vw / 2;
-      camera.top = world.height / 2 + vw / aspect / 2;
-      camera.bottom = world.height / 2 - vw / aspect / 2;
+      camera.top = world.height / 2 + (fullW * h) / w / 2;
+      camera.bottom = world.height / 2 - (fullW * h) / w / 2;
       camera.updateProjectionMatrix();
       renderer.setSize(w, h);
     };
+    rt.resize = resize;
     const ro = new ResizeObserver(resize);
     ro.observe(el);
     resize();
@@ -172,7 +203,7 @@ export function MapView(props: Props) {
     };
     draw();
     const raycaster = new THREE.Raycaster();
-    const pick = (x: number, y: number) => {
+    const pick = (x: number, y: number, provincesOnly = false) => {
       const r = el.getBoundingClientRect();
       raycaster.setFromCamera(
         new THREE.Vector2(
@@ -182,7 +213,10 @@ export function MapView(props: Props) {
         camera,
       );
       return raycaster
-        .intersectObjects([...units.children, ...meshes], false)
+        .intersectObjects(
+          provincesOnly ? meshes : [...units.children, ...meshes],
+          false,
+        )
         .map((h) => h.object)
         .find(
           (o) =>
@@ -228,7 +262,7 @@ export function MapView(props: Props) {
         return;
       }
       if (down.button === 2) {
-        const hit = pick(e.clientX, e.clientY);
+        const hit = pick(e.clientX, e.clientY, true);
         if (hit?.userData.province !== undefined)
           p.onMove(hit.userData.province);
       } else if (Math.hypot(e.clientX - down.x, e.clientY - down.y) > 5) {
@@ -245,7 +279,7 @@ export function MapView(props: Props) {
             y <= Math.max(down.y, e.clientY) &&
             unit.userData.owner === p.nation
           )
-            ids.push(unit.userData.unit);
+            ids.push(...(unit.userData.unitIds || []));
         }
         p.onUnits([...new Set(e.shiftKey ? [...p.units, ...ids] : ids)]);
       } else {
@@ -253,8 +287,8 @@ export function MapView(props: Props) {
         if (hit?.userData.unit !== undefined && hit.userData.owner === p.nation)
           p.onUnits(
             e.shiftKey
-              ? [...new Set([...p.units, hit.userData.unit])]
-              : [hit.userData.unit],
+              ? [...new Set([...p.units, ...hit.userData.unitIds])]
+              : hit.userData.unitIds,
           );
         else if (hit?.userData.province !== undefined)
           p.onProvince(hit.userData.province);
@@ -290,11 +324,15 @@ export function MapView(props: Props) {
           o.material.dispose();
         }
       });
+      texture.dispose();
       renderer.dispose();
       el.removeChild(renderer.domElement);
       runtime.current = null;
     };
   }, [props.world]);
+  useEffect(() => {
+    runtime.current?.resize();
+  }, [props.insetLeft]);
   useEffect(() => {
     const r = runtime.current;
     if (!r) return;
@@ -305,13 +343,13 @@ export function MapView(props: Props) {
         owner = state ? state.owners[id] : p.owner;
       let color =
         p.kind === "sea"
-          ? "#243f55"
+          ? "#395762"
           : p.kind === "impassable-sea"
-            ? "#122230"
+            ? "#24383e"
             : p.kind === "impassable-land"
-              ? "#59615b"
+              ? "#4c5445"
               : owner === null
-                ? "#687a71"
+                ? "#8d9276"
                 : world.nations[owner].color;
       if (air && !p.kind.startsWith("impassable"))
         color = world.airZones[p.airZone].color;
@@ -319,14 +357,17 @@ export function MapView(props: Props) {
         color = world.seaZones[p.seaZone].color;
       const mat = mesh.material as THREE.MeshBasicMaterial;
       mat.color.set(color);
+      if (p.kind === "land" && !air && !props.sea)
+        mat.color.lerp(new THREE.Color("#a0a084"), 0.22);
       if (id === selected) mat.color.lerp(new THREE.Color("#fff4ba"), 0.55);
       else if (nation !== null && owner !== nation && p.kind === "land")
-        mat.color.multiplyScalar(0.76);
+        mat.color.multiplyScalar(0.86);
     }
     while (r.units.children.length) {
       const u = r.units.children[0] as THREE.Mesh;
       r.units.remove(u);
       u.geometry.dispose();
+      (u.material as THREE.MeshBasicMaterial).map?.dispose();
       (u.material as THREE.Material).dispose();
     }
     for (const id of Object.keys(state?.ports || {})) {
@@ -349,40 +390,123 @@ export function MapView(props: Props) {
         r.units.add(marker);
       }
     }
-    const count: Record<number, number> = {};
-    for (const u of state?.units || []) {
-      const p = world.provinces[u.province],
-        offset = count[u.province] || 0;
-      count[u.province] = offset + 1;
-      const geometry =
-        u.kind === "fleet"
-          ? new THREE.CircleGeometry(2.7, 3)
-          : p.kind === "sea"
-            ? new THREE.CircleGeometry(2.5, 4)
-            : new THREE.PlaneGeometry(4.8, 3.5);
-      const mesh = new THREE.Mesh(
-        geometry,
-        new THREE.MeshBasicMaterial({
-          color: props.units.includes(u.id)
-            ? "#ffffff"
-            : u.owner === nation
-              ? "#f9df85"
-              : "#e1a69a",
-        }),
-      );
-      mesh.position.set(
-        p.center[0] + ((offset % 3) - 1) * 5.5,
-        world.height - p.center[1] - Math.floor(offset / 3) * 4,
-        3,
-      );
-      mesh.userData = { unit: u.id, owner: u.owner };
-      r.units.add(mesh);
-      for (const dx of [-world.width, world.width]) {
-        const copy = mesh.clone();
-        copy.geometry = geometry.clone();
-        copy.material = (mesh.material as THREE.MeshBasicMaterial).clone();
-        copy.position.x += dx;
-        r.units.add(copy);
+    const groups = new Map<string, NonNullable<typeof state>["units"]>();
+    for (const unit of state?.units || []) {
+      const key = `${unit.province}:${unit.owner}:${unit.kind}`;
+      groups.set(key, [...(groups.get(key) || []), unit]);
+    }
+    const offsets = new Map<number, number>();
+    for (const group of groups.values()) {
+      const u = group[0],
+        p = world.provinces[u.province];
+      const offset = offsets.get(p.id) || 0;
+      offsets.set(p.id, offset + 1);
+      const chosen = group.some((u) => props.units.includes(u.id));
+      const canvas = document.createElement("canvas");
+      canvas.width = 160;
+      canvas.height = 100;
+      const ctx = canvas.getContext("2d")!;
+      ctx.fillStyle = chosen
+        ? "#e9d59a"
+        : u.owner === nation
+          ? "#c7ccab"
+          : "#b8b5a2";
+      ctx.fillRect(2, 2, 156, 96);
+      ctx.strokeStyle = chosen ? "#fff6c3" : "#202b25";
+      ctx.lineWidth = 6;
+      ctx.strokeRect(3, 3, 154, 94);
+      ctx.fillStyle = world.nations[u.owner].color;
+      ctx.fillRect(9, 9, 18, 63);
+      ctx.strokeStyle = "#28352b";
+      ctx.lineWidth = 4;
+      ctx.strokeRect(40, 17, 57, 42);
+      ctx.beginPath();
+      if (u.kind === "fleet") {
+        ctx.moveTo(48, 41);
+        ctx.lineTo(88, 41);
+        ctx.lineTo(77, 52);
+        ctx.lineTo(58, 52);
+        ctx.closePath();
+        ctx.moveTo(69, 22);
+        ctx.lineTo(69, 41);
+      } else if (u.battalions.includes("armored")) {
+        ctx.ellipse(68, 38, 21, 12, 0, 0, Math.PI * 2);
+      } else {
+        ctx.moveTo(40, 17);
+        ctx.lineTo(97, 59);
+        ctx.moveTo(97, 17);
+        ctx.lineTo(40, 59);
+      }
+      ctx.stroke();
+      ctx.fillStyle = "#263329";
+      ctx.font = "bold 30px Arial";
+      ctx.textAlign = "center";
+      ctx.fillText(String(group.length), 124, 49);
+      const org =
+        group.reduce((s, u) => s + u.org / u.maxOrg, 0) / group.length;
+      const strength =
+        group.reduce((s, u) => s + u.strength, 0) / group.length / 100;
+      ctx.fillStyle = "#57614f";
+      ctx.fillRect(35, 70, 115, 8);
+      ctx.fillRect(35, 82, 115, 6);
+      ctx.fillStyle = "#6f9e5b";
+      ctx.fillRect(35, 70, 115 * Math.max(0, Math.min(1, org)), 8);
+      ctx.fillStyle = "#c09648";
+      ctx.fillRect(35, 82, 115 * Math.max(0, Math.min(1, strength)), 6);
+      for (const dx of [-world.width, 0, world.width]) {
+        const mesh = new THREE.Mesh(
+          new THREE.PlaneGeometry(11.5, 7.2),
+          new THREE.MeshBasicMaterial({
+            map: new THREE.CanvasTexture(canvas),
+            transparent: true,
+            depthTest: false,
+          }),
+        );
+        mesh.position.set(
+          p.center[0] + dx + offset * 6,
+          world.height - p.center[1] - offset * 4,
+          5,
+        );
+        mesh.userData = {
+          unit: u.id,
+          unitIds: group.map((u) => u.id),
+          owner: u.owner,
+          province: p.id,
+        };
+        r.units.add(mesh);
+      }
+    }
+    while (r.routes.children.length) {
+      const line = r.routes.children[0] as THREE.Line;
+      r.routes.remove(line);
+      line.geometry.dispose();
+      (line.material as THREE.Material).dispose();
+    }
+    for (const unit of state?.units || []) {
+      if (!props.units.includes(unit.id) || !unit.route?.length) continue;
+      const points: THREE.Vector3[] = [];
+      let last = world.provinces[unit.province].center[0];
+      for (const id of [unit.province, ...unit.route]) {
+        const p = world.provinces[id];
+        let x = p.center[0];
+        while (x - last > world.width / 2) x -= world.width;
+        while (x - last < -world.width / 2) x += world.width;
+        points.push(new THREE.Vector3(x, world.height - p.center[1], 4));
+        last = x;
+      }
+      for (const dx of [-world.width, 0, world.width]) {
+        const line = new THREE.Line(
+          new THREE.BufferGeometry().setFromPoints(points),
+          new THREE.LineDashedMaterial({
+            color: "#f2de86",
+            dashSize: 2,
+            gapSize: 1,
+            depthTest: false,
+          }),
+        );
+        line.computeLineDistances();
+        line.position.x = dx;
+        r.routes.add(line);
       }
     }
   }, [

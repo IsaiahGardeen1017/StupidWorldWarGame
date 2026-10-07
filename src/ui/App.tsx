@@ -1,3 +1,5 @@
+import { Icon, Flag } from "./Icons";
+import { AtlasOverview } from "./AtlasOverview";
 import { calendar, TICKS_PER_DAY } from "../engine/calendar";
 import { useEffect, useRef, useState } from "react";
 import { MapView } from "./MapView";
@@ -57,6 +59,7 @@ export function App() {
     [selected, setSelected] = useState<number | null>(null),
     [units, setUnits] = useState<number[]>([]),
     [tab, setTab] = useState<Tab>("overview"),
+    [panelOpen, setPanelOpen] = useState(true),
     [paused, setPaused] = useState(true),
     [speed, setSpeed] = useState(1),
     [air, setAir] = useState(false),
@@ -253,6 +256,7 @@ export function App() {
     setPaused(true);
     setScreen("game");
     setTab("overview");
+    setPanelOpen(true);
     setUnits([]);
     setTimeline(null);
   }
@@ -324,7 +328,9 @@ export function App() {
       </main>
     );
   return (
-    <div className="app">
+    <div
+      className={`app screen-${screen} section-${tab} ${panelOpen ? "panel-open" : "panel-closed"}`}
+    >
       {message && (
         <div className="toast" role="status">
           {message}
@@ -346,16 +352,17 @@ export function App() {
             />
           </div>
           <div className="welcome-content">
-            <div className="eyebrow">A GRAND STRATEGY SANDBOX</div>
+            <div className="campaign-emblem">✦</div>
+            <div className="eyebrow">THE WORLD STANDS AT A CROSSROADS</div>
             <h1>
               WORLD
               <br />
               <span>AT WAR</span>
             </h1>
             <p>
-              Eight nations. One continent.
+              January 1936. Eight nations.
               <br />
-              Industry, diplomacy, and the battle for tomorrow.
+              Command the industry. Shape the frontiers.
             </p>
             <div className="welcome-actions">
               <button
@@ -367,10 +374,10 @@ export function App() {
                   setMulti(false);
                 }}
               >
-                Singleplayer <span>→</span>
+                <Icon name="army" size={22} /> Singleplayer <span>→</span>
               </button>
               <button onClick={connect}>
-                Multiplayer <span>→</span>
+                <Icon name="politics" size={22} /> Multiplayer <span>→</span>
               </button>
             </div>
             <label className="load-link">
@@ -396,9 +403,85 @@ export function App() {
       ) : (
         <>
           <header className="topbar">
-            <button className="brand" onClick={exit}>
-              WORLD <span>AT</span> WAR
-            </button>
+            {screen === "game" && nation !== null ? (
+              <button
+                className="country-seal"
+                onClick={() => {
+                  setTab("overview");
+                  setPanelOpen((p) => !p);
+                }}
+              >
+                <Flag nation={world.nations[nation]} />
+                <span>
+                  <small>NATIONAL COMMAND</small>
+                  <b>{world.nations[nation].name}</b>
+                </span>
+                <Icon name="chevron" size={14} />
+              </button>
+            ) : (
+              <button className="brand" onClick={exit}>
+                WORLD <span>AT</span> WAR
+              </button>
+            )}
+            {screen === "game" && n && (
+              <div className="national-resources">
+                <div title="Civilian / military factories">
+                  <Icon name="industry" />
+                  <b>
+                    {n.civs}
+                    <em>/</em>
+                    {n.mils}
+                  </b>
+                  <small>FACTORIES</small>
+                </div>
+                <div title="Fielded divisions">
+                  <Icon name="army" />
+                  <b>
+                    {
+                      shown?.units.filter(
+                        (u) => u.owner === nation && u.kind === "division",
+                      ).length
+                    }
+                  </b>
+                  <small>DIVISIONS</small>
+                </div>
+                <div title="Fleets">
+                  <Icon name="navy" />
+                  <b>
+                    {
+                      shown?.units.filter(
+                        (u) => u.owner === nation && u.kind === "fleet",
+                      ).length
+                    }
+                  </b>
+                  <small>FLEETS</small>
+                </div>
+                <div title="Deployed fighters">
+                  <Icon name="air" />
+                  <b>
+                    {shown?.wings
+                      .filter((w) => w.owner === nation)
+                      .reduce((a, w) => a + w.planes, 0)}
+                  </b>
+                  <small>AIRCRAFT</small>
+                </div>
+                <div
+                  className={
+                    shown?.wars.some((w) => w.includes(nation!))
+                      ? "at-war"
+                      : "at-peace"
+                  }
+                >
+                  <span className="status-dot" />
+                  <b>
+                    {shown?.wars.some((w) => w.includes(nation!))
+                      ? "AT WAR"
+                      : "AT PEACE"}
+                  </b>
+                  <small>DIPLOMATIC STATUS</small>
+                </div>
+              </div>
+            )}
             <span className="mode">
               {screen === "game"
                 ? multi
@@ -425,7 +508,8 @@ export function App() {
                   {!multi && (
                     <>
                       <button onClick={() => setPaused((p) => !p)}>
-                        {paused ? "▶ Resume" : "Ⅱ Pause"}
+                        <Icon name={paused ? "play" : "pause"} size={13} />
+                        {paused ? "Resume" : "Pause"}
                       </button>
                       <select
                         aria-label="Simulation speed"
@@ -448,7 +532,8 @@ export function App() {
                         );
                     }}
                   >
-                    ↓ Save
+                    <Icon name="save" size={13} />
+                    Save
                   </button>
                 </>
               )}
@@ -523,7 +608,7 @@ export function App() {
                         send({ type: "nation", nation: country.id });
                       }}
                     >
-                      <i style={{ background: country.color }} />
+                      <Flag nation={country} />
                       <h3>{country.name}</h3>
                       <p>{country.description}</p>
                       <small>
@@ -562,9 +647,64 @@ export function App() {
               </button>
             </main>
           ) : (
-            <div className="workspace">
+            <div
+              className={`workspace ${screen === "select" ? "country-selection" : ""}`}
+            >
+              {screen === "game" && (
+                <nav className="command-nav" aria-label="National departments">
+                  {(
+                    [
+                      "overview",
+                      "industry",
+                      "army",
+                      "navy",
+                      "air",
+                      "research",
+                      "politics",
+                      "chronicle",
+                    ] as Tab[]
+                  ).map((t) => (
+                    <button
+                      key={t}
+                      aria-label={t}
+                      title={`${{ overview: "National overview", industry: "Construction & production", army: "Recruitment & division designer", navy: "Fleets & naval invasions", air: "Air command", research: "Research & technology", politics: "Diplomacy", chronicle: "Campaign history" }[t]}`}
+                      className={tab === t && panelOpen ? "active" : ""}
+                      onClick={() => {
+                        setTab(t);
+                        setPanelOpen(tab !== t || !panelOpen);
+                      }}
+                    >
+                      <Icon name={t} size={25} />
+                      <span>
+                        {
+                          {
+                            overview: "Overview",
+                            industry: "Industry",
+                            army: "Army",
+                            navy: "Navy",
+                            air: "Air force",
+                            research: "Research",
+                            politics: "Diplomacy",
+                            chronicle: "History",
+                          }[t]
+                        }
+                      </span>
+                    </button>
+                  ))}
+                </nav>
+              )}
               <div className="map-shell">
                 <div className="map-tools">
+                  <button
+                    className={!air && !sea ? "active" : ""}
+                    onClick={() => {
+                      setAir(false);
+                      setSea(false);
+                    }}
+                  >
+                    <Icon name="map" size={14} />
+                    Political
+                  </button>
                   <span>
                     STRATEGIC ATLAS <small>EUROPA / 1936</small>
                   </span>
@@ -575,7 +715,8 @@ export function App() {
                       setSea(false);
                     }}
                   >
-                    {air ? "Air zones" : "Political map"}
+                    <Icon name="air" size={14} />
+                    Air zones
                   </button>
                   <button
                     className={sea ? "active" : ""}
@@ -595,6 +736,15 @@ export function App() {
                   units={units}
                   air={air}
                   sea={sea}
+                  insetLeft={
+                    screen === "game" && panelOpen
+                      ? tab === "research"
+                        ? 630
+                        : tab === "army"
+                          ? 450
+                          : 390
+                      : 0
+                  }
                   onProvince={selectProvince}
                   onUnits={setUnits}
                   onMove={(id) => {
@@ -622,7 +772,33 @@ export function App() {
                   <span>▲ Fleet</span>
                 </div>
               </div>
-              <aside className="sidebar">
+              <aside
+                className={`sidebar ${screen === "game" && !panelOpen ? "hidden" : ""}`}
+              >
+                <div className="panel-rail">
+                  <span>
+                    {screen === "select"
+                      ? "SELECT YOUR NATION"
+                      : {
+                          overview: "NATIONAL OVERVIEW",
+                          industry: "INDUSTRIAL COMMAND",
+                          army: "ARMY COMMAND",
+                          navy: "NAVAL COMMAND",
+                          air: "AIR COMMAND",
+                          research: "RESEARCH BUREAU",
+                          politics: "FOREIGN AFFAIRS",
+                          chronicle: "CAMPAIGN HISTORY",
+                        }[tab]}
+                  </span>
+                  {screen === "game" && (
+                    <button
+                      aria-label="Close command panel"
+                      onClick={() => setPanelOpen(false)}
+                    >
+                      <Icon name="close" size={15} />
+                    </button>
+                  )}
+                </div>
                 {screen === "select" ? (
                   <>
                     <div className="eyebrow">YOUR PLACE IN HISTORY</div>
@@ -640,7 +816,7 @@ export function App() {
                             setSelected(country.capital);
                           }}
                         >
-                          <i style={{ background: country.color }} />
+                          <Flag nation={country} />
                           {country.name}
                           <span>→</span>
                         </button>
@@ -679,14 +855,9 @@ export function App() {
                 ) : (
                   <>
                     <div className="nation-heading">
-                      <i
-                        style={{
-                          background:
-                            nation !== null
-                              ? world.nations[nation].color
-                              : "#fff",
-                        }}
-                      />
+                      {nation !== null && (
+                        <Flag nation={world.nations[nation]} />
+                      )}
                       <div>
                         <small>NATIONAL COMMAND</small>
                         <h2>
@@ -704,28 +875,6 @@ export function App() {
                         Campaign won by {world.nations[shown.winner].name}.
                       </p>
                     )}
-                    <nav>
-                      {(
-                        [
-                          "overview",
-                          "industry",
-                          "army",
-                          "navy",
-                          "air",
-                          "research",
-                          "politics",
-                          "chronicle",
-                        ] as Tab[]
-                      ).map((t) => (
-                        <button
-                          key={t}
-                          className={tab === t ? "active" : ""}
-                          onClick={() => setTab(t)}
-                        >
-                          {t}
-                        </button>
-                      ))}
-                    </nav>
                     <div
                       className="panel"
                       inert={
@@ -737,7 +886,7 @@ export function App() {
                       {tab === "overview" && n && (
                         <>
                           <div className="eyebrow">SITUATION REPORT</div>
-                          <h3>A continent on the brink</h3>
+                          <h3>Your nation. Your strategy.</h3>
                           <p className="muted">
                             Build your industry, train divisions, and secure
                             your borders. AI nations follow the same rules.
@@ -763,6 +912,57 @@ export function App() {
                               <b>{n.mils}</b>
                               <small>MIL FACTORIES</small>
                             </div>
+                          </div>
+                          <h4>
+                            Field formations{" "}
+                            <span className="section-count">
+                              {
+                                shown?.units.filter(
+                                  (u) =>
+                                    u.owner === nation && u.kind === "division",
+                                ).length
+                              }
+                            </span>
+                          </h4>
+                          <div className="formation-roster">
+                            {shown?.units
+                              .filter(
+                                (u) =>
+                                  u.owner === nation && u.kind === "division",
+                              )
+                              .map((u) => (
+                                <button
+                                  className={
+                                    units.includes(u.id) ? "active" : ""
+                                  }
+                                  key={u.id}
+                                  onClick={() => {
+                                    setUnits([u.id]);
+                                    setSelected(u.province);
+                                  }}
+                                >
+                                  <Icon name="army" size={19} />
+                                  <span>
+                                    <b>{u.name}</b>
+                                    <small>
+                                      Province {u.province} ·{" "}
+                                      {u.transition
+                                        ? u.transition.kind
+                                        : u.target !== null
+                                          ? "Moving"
+                                          : "Standing by"}
+                                    </small>
+                                  </span>
+                                  <i>
+                                    <em
+                                      style={{
+                                        width: `${(u.org / u.maxOrg) * 100}%`,
+                                      }}
+                                    />
+                                  </i>
+                                  <strong>{Math.round(u.strength)}%</strong>
+                                </button>
+                              ))}
                           </div>
                           <h4>Equipment stockpile</h4>
                           <div className="stock-list">
@@ -865,7 +1065,23 @@ export function App() {
                           {equipmentTypes.map((e) => (
                             <div className="production-row" key={e}>
                               <div>
-                                <b>{e}</b>
+                                <b>
+                                  <Icon
+                                    name={
+                                      e === "gun"
+                                        ? "gun"
+                                        : e === "tank"
+                                          ? "tank"
+                                          : e === "fighter"
+                                            ? "air"
+                                            : e === "destroyer"
+                                              ? "navy"
+                                              : "gun"
+                                    }
+                                    size={20}
+                                  />
+                                  {e}
+                                </b>
                                 <small>Stock: {Math.floor(n.stock[e])}</small>
                               </div>
                               <button
@@ -939,15 +1155,31 @@ export function App() {
                                   setBs(bs.filter((_, j) => j !== i))
                                 }
                               >
-                                {b === "infantry"
-                                  ? "Ⅰ"
-                                  : b === "armored"
-                                    ? "▰"
-                                    : "✦"}
+                                {b === "infantry" ? (
+                                  <Icon name="army" size={24} />
+                                ) : b === "armored" ? (
+                                  <Icon name="tank" size={24} />
+                                ) : (
+                                  <Icon name="gun" size={24} />
+                                )}
                                 <small>{b}</small>
                                 <span>×</span>
                               </button>
                             ))}
+                            {Array.from(
+                              { length: Math.max(0, 10 - bs.length) },
+                              (_, i) => (
+                                <button
+                                  key={`empty-${i}`}
+                                  className="empty-battalion"
+                                  title="Add infantry battalion"
+                                  onClick={() => setBs([...bs, "infantry"])}
+                                >
+                                  <Icon name="plus" size={19} />
+                                  <small>ADD</small>
+                                </button>
+                              ),
+                            )}
                           </div>
                           <div className="button-row">
                             {(
@@ -1230,48 +1462,64 @@ export function App() {
                             One active research project per nation. All
                             equipment types are available from the start.
                           </p>
-                          {technologies.map((t) => (
-                            <div
-                              className={`tech ${n.techs.includes(t.id) ? "complete" : ""}`}
-                              key={t.id}
-                            >
-                              <small>
-                                {t.requires
-                                  ? `↳ Requires ${technologies.find((x) => x.id === t.requires)?.name}`
-                                  : "FOUNDATION"}
-                              </small>
-                              <h4>{t.name}</h4>
-                              <p>{t.description}</p>
-                              {n.research === t.id ? (
-                                <>
-                                  <progress
-                                    value={n.researchProgress}
-                                    max={t.cost}
-                                  />
-                                  <small>
-                                    {n.researchProgress}/{t.cost} days
-                                  </small>
-                                </>
-                              ) : (
-                                <button
-                                  disabled={
-                                    n.techs.includes(t.id) ||
-                                    !!(
-                                      t.requires &&
-                                      !n.techs.includes(t.requires)
-                                    )
+                          <div className="technology-graph">
+                            {technologies.map((t) => (
+                              <div
+                                className={`tech ${n.techs.includes(t.id) ? "complete" : ""}`}
+                                key={t.id}
+                              >
+                                <small>
+                                  {t.requires
+                                    ? `↳ Requires ${technologies.find((x) => x.id === t.requires)?.name}`
+                                    : "FOUNDATION"}
+                                </small>
+                                <Icon
+                                  name={
+                                    t.id === "industry"
+                                      ? "industry"
+                                      : t.id === "weapons"
+                                        ? "gun"
+                                        : t.id === "armor"
+                                          ? "tank"
+                                          : t.id === "aviation"
+                                            ? "air"
+                                            : "navy"
                                   }
-                                  onClick={() =>
-                                    command({ type: "research", tech: t.id })
-                                  }
-                                >
-                                  {n.techs.includes(t.id)
-                                    ? "Researched"
-                                    : `Research · ${t.cost} days`}
-                                </button>
-                              )}
-                            </div>
-                          ))}
+                                  size={27}
+                                />
+                                <h4>{t.name}</h4>
+                                <p>{t.description}</p>
+                                {n.research === t.id ? (
+                                  <>
+                                    <progress
+                                      value={n.researchProgress}
+                                      max={t.cost}
+                                    />
+                                    <small>
+                                      {n.researchProgress}/{t.cost} days
+                                    </small>
+                                  </>
+                                ) : (
+                                  <button
+                                    disabled={
+                                      n.techs.includes(t.id) ||
+                                      !!(
+                                        t.requires &&
+                                        !n.techs.includes(t.requires)
+                                      )
+                                    }
+                                    onClick={() =>
+                                      command({ type: "research", tech: t.id })
+                                    }
+                                  >
+                                    {n.techs.includes(t.id)
+                                      ? "Researched"
+                                      : `Research · ${t.cost} days`}
+                                  </button>
+                                )}
+                              </div>
+                            ))}
+                          </div>
                         </>
                       )}
                       {tab === "politics" && n && (
@@ -1291,7 +1539,7 @@ export function App() {
                               );
                               return (
                                 <div className="diplomacy" key={other.id}>
-                                  <i style={{ background: other.color }} />
+                                  <Flag nation={other} />
                                   <div>
                                     <b>{other.name}</b>
                                     <small>
@@ -1552,6 +1800,92 @@ export function App() {
                   </>
                 )}
               </aside>
+              {screen === "game" && (
+                <>
+                  <AtlasOverview
+                    world={world}
+                    state={shown}
+                    onProvince={selectProvince}
+                  />
+                  <div className="theater-banner">
+                    <span className="status-dot" />
+                    <b>EUROPEAN THEATER</b>
+                    <small>
+                      {shown?.wars.length
+                        ? `${shown.wars.length} active conflict${shown.wars.length === 1 ? "" : "s"}`
+                        : "No active conflicts"}
+                    </small>
+                  </div>
+                  {province && (
+                    <div className="province-card">
+                      <span className="eyebrow">
+                        PROVINCE {province.id} ·{" "}
+                        {province.kind
+                          .replace("impassable-", "IMPASSABLE ")
+                          .toUpperCase()}
+                      </span>
+                      <b>
+                        {shown && shown.owners[province.id] !== null
+                          ? world.nations[shown.owners[province.id]!].name
+                          : province.kind.includes("sea")
+                            ? "Open sea"
+                            : "Unclaimed land"}
+                      </b>
+                      <small>
+                        {world.airZones[province.airZone].name}
+                        {shown?.ports[province.id] ? " · ⚓ Port" : ""}
+                      </small>
+                      <button
+                        onClick={() => setSelected(null)}
+                        aria-label="Dismiss province"
+                      >
+                        <Icon name="close" size={13} />
+                      </button>
+                    </div>
+                  )}
+                  {selectedUnits.length > 0 && (
+                    <div className="army-order-bar">
+                      <Icon
+                        name={
+                          selectedUnits[0].kind === "fleet" ? "navy" : "army"
+                        }
+                        size={29}
+                      />
+                      <div>
+                        <b>
+                          {selectedUnits.length}{" "}
+                          {selectedUnits[0].kind === "fleet"
+                            ? "fleet"
+                            : "division"}
+                          {selectedUnits.length > 1 ? "s" : ""} selected
+                        </b>
+                        <small>
+                          Right click a destination to issue a movement order
+                        </small>
+                      </div>
+                      <button
+                        onClick={() =>
+                          selectedUnits.forEach((u) =>
+                            command({
+                              type: "move",
+                              units: [u.id],
+                              province: u.province,
+                            }),
+                          )
+                        }
+                      >
+                        Halt
+                      </button>
+                      <button
+                        aria-label="Clear unit selection"
+                        onClick={() => setUnits([])}
+                      >
+                        <Icon name="close" size={17} />
+                      </button>
+                    </div>
+                  )}
+                </>
+              )}
             </div>
           )}
           <footer className="statusbar">

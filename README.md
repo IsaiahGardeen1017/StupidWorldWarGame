@@ -16,7 +16,7 @@ For a production build: `npm run build`, then `npm start`. `PORT` optionally ove
 
 ## Play
 
-Choose **Singleplayer**, pick a nation on the atlas or list, then begin. Singleplayer starts paused. **Space** or the top toolbar resumes/pauses; three ticks represent one Gregorian day (early daylight, late daylight, night), starting January 1, 1936. Normal 1× speed runs two ticks per real second. Live games have no calendar end date. Controls remain accessible while paused and orders execute on the next tick. The Industry, Army, Navy, Air, Research, Politics, and Chronicle tabs expose all mechanics.
+Choose **Singleplayer**, pick a nation on the atlas or list, then begin. Singleplayer starts paused. **Space** or the top toolbar resumes/pauses; three ticks represent one Gregorian day (early daylight, late daylight, night), starting January 1, 1936. Normal 1× speed runs two ticks per real second. Live games have no calendar end date. Controls remain accessible while paused and orders execute on the next tick. The top command strip opens collapsible Industry, Army, Navy, Air, Research, Diplomacy, and History panels. The national bar shows factories and forces; the minimap and province card keep the main atlas visible. Formation counters display stack size, organization (green), and strength (gold). Select formations from the roster or atlas to see their movement routes.
 
 Drag-select your divisions/fleets or click a unit; **right click** a compatible destination to move. Shift adds to selection. Scroll zooms; middle-button dragging pans the cylindrical map horizontally. The eastern and western edges share neighbors. There is no polar/vertical wrap. War is required to cross foreign land. Impassable tiles cannot be traversed. Fleets stay at sea. Divisions can route overseas through an owned port. Land combat cannot happen on sea provinces; transports and enemy fleets ignore each other in this MVP.
 
@@ -32,6 +32,35 @@ Create or join a multiplayer lobby, select distinct nations, and let the host st
 - **Technology:** five research projects with explicit prerequisite edges. One project at a time; changing a project resets its progress. Industry increases output, weapons and mobile warfare improve attack/defense, aviation improves range, and naval doctrine improves fleet attack.
 - **Politics:** declare war and surrender. Surrender transfers remaining land to the lowest-ID active war opponent and removes formations. Losing all owned land triggers surrender. One remaining nation wins.
 - **AI:** every nation uses the same capability/ownership-driven policy through the public command API. It builds factories, assigns production, creates a combined-arms template, recruits, researches, commissions ships/wings, assigns missions, declares war against bordering opponents, and attacks, including routing divisions through ports for naval invasions. Recruitment is bounded by territory (12 + 2 per owned province, capped at 60) to prevent unbounded idle armies. It is intentionally basic; surrender is primarily forced by defeat.
+
+## Map workshop
+
+Run `npm run map` from the repository root to start the separate local editor on **port 3001**. It lives in this repository and shares the PNG palette definitions with the compiler. It can run alongside `npm run dev`; it does not start a game or rebuild the map.
+
+Select any current PNG in `assets/source/` from the left panel. **Save asset** or **Ctrl+S** (Cmd+S on Mac) overwrites that file. Saves preserve dimensions, use an atomic file replacement, and reject an outdated revision if another editor or program changed the source. Unsaved edits stay in the editor after a failed save. Run `npm run map:build` separately after editing, then start a fresh campaign to use the compiled map.
+
+| Control                        | Action                         |
+| ------------------------------ | ------------------------------ |
+| Right click / drag             | Paint with the brush           |
+| Left click                     | Flood-fill the contiguous area |
+| Middle click                   | Pick the hovered pixel's color |
+| Scroll                         | Zoom around the pointer        |
+| Shift + scroll                 | Change brush diameter          |
+| Space + left drag              | Pan                            |
+| Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z | Undo / redo                    |
+
+The left panel includes a brush-size slider, circle/square shapes, color swatches, and optional horizontal seam wrapping for both painting and fill. `kind.png` permits only the four land/sea classification colors; `owner.png` permits only nation colors and black for unowned territory. Unique-color layers (`provinces.png`, `air.png`, and unrestricted additional PNGs) provide **New unused color**, which picks an RGB value absent from the image, plus a color picker. Additional restricted layers can define a palette in `assets/source/palettes.json`, for example:
+
+```json
+{
+  "terrain.png": [
+    { "color": "#228833", "label": "Plains" },
+    { "color": "#885522", "label": "Mountains" }
+  ]
+}
+```
+
+The authoring server binds to loopback and is separate from the multiplayer server. `MAP_PORT` changes its port; `MAP_ASSET_DIR` selects a different source directory for testing. PNG assets must be fully opaque when saved. The workshop edits pixels only; country definitions remain in `nations.json`.
 
 ## PNG compilation
 
@@ -88,4 +117,4 @@ Fewer SQL writes and no full-state hashing/serialization during each tick keep s
 
 ## Repository layout
 
-`src/engine/`: portable state, rules, commands, AI, and Gregorian calendar. `src/map/`: raster compiler. `scripts/`: source generation, build, simulation. `src/persistence/`: transactional SQLite saves. `src/ui/`: React and Three.js interaction. `server/`: static/dev hosting and WebSocket authority. `tests/`: mechanics, reproducibility, map compilation, saves, and multiplayer integration.
+`src/engine/`: portable state, rules, commands, AI, and Gregorian calendar. `src/map/`: raster compiler. `scripts/`: source generation, build, simulation. `src/persistence/`: transactional SQLite saves. `src/ui/`: React and Three.js interaction. `src/editor/` and `editor/`: the map workshop UI and entry point. `server/`: static/dev hosting, WebSocket authority, and the local asset editor. `tests/`: mechanics, reproducibility, map compilation, saves, and multiplayer integration.
